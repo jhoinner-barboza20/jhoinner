@@ -6,6 +6,20 @@ _carpetaseraf() {
   local -a m; m=("$D"/(#i)*${1}*(/))
   [ -n "$m[1]" ] && echo "$m[1]"
 }
+# El "día de directo" termina a las 6 de la mañana: lo entregado de madrugada cuenta para el día anterior
+_ahora() { zmodload zsh/datetime; echo $(( ${SERAF_AHORA:-$EPOCHSECONDS} - 21600 )); }
+_fechadia() {  # vacío = hoy · ayer · lunes..domingo (el más reciente) -> epoch
+  zmodload zsh/datetime; local a=${(L)1} t=$(_ahora) k u n
+  a=${a//á/a}; a=${a//é/e}
+  case $a in
+    ""|hoy) echo $t; return 0;;
+    ayer) echo $((t - 86400)); return 0;;
+    lunes) n=1;; martes) n=2;; miercoles) n=3;; jueves) n=4;; viernes) n=5;; sabado) n=6;; domingo) n=7;;
+    *) return 1;;
+  esac
+  for k in {0..6}; do strftime -s u '%u' $((t - k*86400)); [ "$u" = "$n" ] && { echo $((t - k*86400)); return 0; }; done
+  return 1
+}
 vincular() {
   local c=${(U)1} k=${(L)${2#@}} l=$3 F=~/Desktop/Clips/.vinculos
   if [ -z "$c" ] || [ -z "$k" ]; then
@@ -31,7 +45,7 @@ _clienteactivo() {
   zmodload zsh/datetime
   local last; last=$(grep "^$1"$'\t' ~/Desktop/Clips/clientes.txt 2>/dev/null | tail -1)
   [ -n "$last" ] || return 1
-  local -a c; c=("${(@ps:\t:)last}"); local hoy=$(_scdia $EPOCHSECONDS)
+  local -a c; c=("${(@ps:\t:)last}"); local hoy=$(_scdia ${2:-$(_ahora)})
   ! [[ $c[3] > $hoy ]] && ! [[ $c[4] < $hoy ]]
 }
 # Cada vertical (editar o editaria) va a "1. crudos/STREAMER"
@@ -74,7 +88,7 @@ hoy() {
   local R=~/Desktop/Clips/clientes.txt D l n
   D=$(_scdrive) || { echo "No encuentro la carpeta Seraf Clips en Google Drive."; return 1; }
   local cr=$(_carpetaseraf crudos) ed=$(_carpetaseraf editados)
-  local hoy=$(_scdia $EPOCHSECONDS); local th=$(_scepoch $hoy) hn=$(_scfecha $EPOCHSECONDS)
+  local ah=$(_ahora); local hoy=$(_scdia $ah); local th=$(_scepoch $hoy) hn=$(_scfecha $ah)
   echo "📅 Hoy: $hn"
   local -A ult; [ -s $R ] && while IFS= read -r l; do [ -n "$l" ] && ult[${l%%$'\t'*}]=$l; done < $R
   local -a c info vids; local q dia dd k e cc est
@@ -101,14 +115,15 @@ hoy() {
 mensaje() {
   zmodload zsh/datetime
   local n=${(U)1} D last
-  [ -n "$n" ] || { echo "Uso: mensaje CLIENTE   (ej: mensaje joanse)"; return 1; }
+  [ -n "$n" ] || { echo "Uso: mensaje CLIENTE [DÍA]   (ej: mensaje joanse  ·  mensaje joanse lunes)"; return 1; }
+  local t; t=$(_fechadia "$2") || { echo "No entiendo el día '$2'. Usa: hoy, ayer o lunes..domingo"; return 1; }
   last=$(grep "^$n"$'\t' ~/Desktop/Clips/clientes.txt 2>/dev/null | tail -1)
   [ -n "$last" ] || { echo "No tengo a $n apuntado."; return 1; }
   D=$(_scdrive) || { echo "No encuentro la carpeta Seraf Clips en Google Drive."; return 1; }
   local -a c vids; c=("${(@ps:\t:)last}")
-  local dd=$(_diacarpeta $n "$(_scfecha $EPOCHSECONDS)" "$D")
+  local dd=$(_diacarpeta $n "$(_scfecha $t)" "$D")
   [ -n "$dd" ] && vids=("$dd"/*.(mp4|mov|MP4|MOV)(N))
-  (( $#vids )) || { echo "Hoy todavía no hay clips en la carpeta de $n."; return 1; }
+  (( $#vids )) || { echo "Todavía no hay clips en la carpeta de $n del $(_scfecha $t)."; return 1; }
   local link=$(awk -v c=$n '$1==c{print $3}' ~/Desktop/Clips/.vinculos 2>/dev/null | tail -1)
   [ -z "$link" ] || [ "$link" = "-" ] && link="[link de su carpeta]"
   local tit="" v t m
@@ -129,12 +144,13 @@ mensaje() {
 entregar() {
   zmodload zsh/datetime
   local n=${(U)1} D
-  [ -n "$n" ] || { echo "Uso: entregar CLIENTE   (ej: entregar joanse)"; return 1; }
+  [ -n "$n" ] || { echo "Uso: entregar CLIENTE [DÍA]   (ej: entregar joanse  ·  entregar joanse lunes)"; return 1; }
+  local t; t=$(_fechadia "$2") || { echo "No entiendo el día '$2'. Usa: hoy, ayer o lunes..domingo"; return 1; }
   grep -q "^$n"$'\t' ~/Desktop/Clips/clientes.txt 2>/dev/null || { echo "No tengo a $n apuntado como cliente."; return 1; }
-  _clienteactivo $n || { echo "$n no tiene un plan activo hoy."; return 1; }
+  _clienteactivo $n $t || { echo "$n no tiene el plan activo el $(_scfecha $t). Su plan: $(grep "^$n"$'\t' ~/Desktop/Clips/clientes.txt | tail -1 | cut -f3,4 | tr '\t' ' ')"; return 1; }
   D=$(_scdrive) || { echo "No encuentro la carpeta Seraf Clips en Google Drive."; return 1; }
-  local dd=$(_diacarpeta $n "$(_scfecha $EPOCHSECONDS)" "$D")
-  [ -n "$dd" ] || { echo "No encuentro la carpeta de hoy de $n."; return 1; }
+  local dd=$(_diacarpeta $n "$(_scfecha $t)" "$D")
+  [ -n "$dd" ] || { echo "No encuentro la carpeta del $(_scfecha $t) de $n."; return 1; }
   local ed=$(_carpetaseraf editados) cr=$(_carpetaseraf crudos) s v k=0 old=0
   for s in $(_canalesde $n); do
     for v in "$ed/${(U)s}"/*.(mp4|mov|MP4|MOV)(N); do
@@ -143,8 +159,8 @@ entregar() {
     done
     for v in "$cr/${(U)s}"/*(N.m+3); do rm -f "$v" && old=$((old+1)); done
   done
-  if (( k )); then echo "📦 $k clips entregados en la carpeta de hoy de $n"
+  if (( k )); then echo "📦 $k clips entregados en ${dd:t} ($n)"
   else echo "No hay clips nuevos de $n en '${ed:t}'."; fi
   (( old )) && echo "🧹 Borré $old crudos de $n de hace más de 3 días"
-  mensaje $n
+  mensaje $n "$2"
 }
