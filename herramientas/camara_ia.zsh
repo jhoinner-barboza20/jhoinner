@@ -25,7 +25,7 @@ _vertical_ia() {
   (( cw >= 64 && ch >= 64 )) || return 1
   local sf; sf=$(~/clipstools/superres --check $cw $ch) || return 1
   local out="${f%.mp4}_vertical.mp4"
-  echo "Poniendo en vertical con IA en la cámara: $base ($n)... (tarda 1-3 minutos)"
+  echo "Poniendo en vertical con IA en la cámara: $base ($n)... (la IA tarda unos minutos)"
   ffmpeg -nostdin -loglevel error -i "$f" -an -vf "crop=$cw:$ch:$cx:$cy,fps=30,scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=bgra" -f rawvideo - \
     | ~/clipstools/superres $cw $ch $sf \
     | ffmpeg -nostdin -loglevel error -y -i "$f" -f rawvideo -pix_fmt bgra -s $((cw*sf))x$((ch*sf)) -framerate 30 -i - \
@@ -60,4 +60,77 @@ compararia() {
   ffmpeg -nostdin -loglevel error -y -i $t/normal.mp4 -i $t/ia.mp4 -filter_complex "[0:v]crop=1080:768:0:0[a];[1:v]crop=1080:768:0:0[b];[a][b]hstack[v]" \
     -map "[v]" -map "0:a?" -c:v h264_videotoolbox -b:v 30M -c:a copy "$out" && rm -rf $t \
     && echo "Listo: comparacion_camara.mp4 · IZQUIERDA normal · DERECHA con IA" && open "$out"
+}
+# ===== Cola de la IA: editar encuadra y la IA trabaja en segundo plano =====
+_aviso() {
+  osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1
+  afplay /System/Library/Sounds/Glass.aiff >/dev/null 2>&1 &!
+}
+_colaarrancar() {
+  local L=~/Desktop/Clips/.cola/.lock p
+  p=$(cat $L/pid 2>/dev/null)
+  [ -n "$p" ] && kill -0 $p 2>/dev/null && return 0
+  mkdir -p ~/Desktop/Clips/logs
+  nohup caffeinate -i zsh -lic '_colaia' >> ~/Desktop/Clips/logs/cola.log 2>&1 &!
+}
+_encolar() {
+  zmodload zsh/datetime
+  local Q=~/Desktop/Clips/.cola; mkdir -p $Q
+  printf '%s\n%s\n' "$1" "$2" > $Q/${EPOCHREALTIME/./}.job
+  local -a a; a=($Q/*.job(N) $Q/*.haciendo(N))
+  echo "En cola con IA ✅ (${#a} en la cola). Te aviso cuando esté listo: sigue con el siguiente clip."
+  _colaarrancar
+}
+_colaia() {
+  local Q=~/Desktop/Clips/.cola L=~/Desktop/Clips/.cola/.lock j f s out x p
+  while true; do
+    if ! mkdir $L 2>/dev/null; then
+      p=$(cat $L/pid 2>/dev/null)
+      [ -n "$p" ] && [ "$p" != $$ ] && kill -0 $p 2>/dev/null && return 0
+      rm -rf $L; mkdir $L 2>/dev/null || return 0
+    fi
+    echo $$ > $L/pid
+    for x in $Q/*.haciendo(N); do mv "$x" "${x%.haciendo}"; done
+    while true; do
+      local -a js; js=($Q/*.job(N)); j=$js[1]
+      [ -z "$j" ] && break
+      mv "$j" "$j.haciendo"
+      f=$(sed -n 1p "$j.haciendo"); s=$(sed -n 2p "$j.haciendo")
+      echo "$(date '+%H:%M') Haciendo ${f:t}"
+      if [ -f "$f" ]; then
+        out="${f%.mp4}_vertical.mp4"
+        vertical "$f" < /dev/null
+        if [ -s "$out" ]; then
+          rm -f "$f"
+          [ "$s" = sub ] && subtitular "$out" < /dev/null
+          _aviso "Clip listo con IA ✅" "${out:t}"
+        else
+          _aviso "No pude hacer el vertical" "${f:t}"
+        fi
+      fi
+      rm -f "$j.haciendo"
+      echo "$(date '+%H:%M') Terminado ${f:t}"
+    done
+    rm -rf $L
+    js=($Q/*.job(N)); (( $#js )) || return 0
+  done
+}
+cola() {
+  local Q=~/Desktop/Clips/.cola x f; local -a a b
+  a=($Q/*.haciendo(N)); b=($Q/*.job(N))
+  (( $#a + $#b )) || { echo "No hay clips en la cola."; return 0; }
+  for x in $a; do f=$(sed -n 1p $x); echo "▶ Haciendo ahora: ${f:t}"; done
+  for x in $b; do f=$(sed -n 1p $x); echo "⏳ Esperando:     ${f:t}"; done
+}
+[ -z "$functions[_editar_base]" ] && (( $+functions[editar] )) && functions[_editar_base]=$functions[editar]
+editar() {
+  local f="$1"
+  if [ ! -x ~/clipstools/superres ] || [ -f ~/Desktop/Clips/.sinia ] || [ ! -f "$f" ] || [[ $f == *_vertical* ]]; then
+    _editar_base "$@"; return
+  fi
+  local base=$(basename "$f" .mp4); local n=${base%_*}
+  echo "$n" > ~/Desktop/Clips/.nombre
+  echo "Streamer: $n"
+  encuadrar "$f" || return 1
+  _encolar "$f" "$2"
 }
