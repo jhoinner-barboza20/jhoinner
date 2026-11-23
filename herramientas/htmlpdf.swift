@@ -15,7 +15,7 @@ final class Loader: NSObject, WKNavigationDelegate {
             cfg.rect = CGRect(x: 0, y: 0, width: 612, height: 792)
             do {
                 let data = try await webView.pdf(configuration: cfg)
-                try data.write(to: out)
+                try data.write(to: self.out)
                 exit(0)
             } catch { Loader.fallo("No pude crear el PDF: \(error.localizedDescription)") }
         }

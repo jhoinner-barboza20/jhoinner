@@ -142,8 +142,8 @@ final class PDFMaker: NSObject, WKNavigationDelegate {
             try? await Task.sleep(nanoseconds: 800_000_000)
             let cfg = WKPDFConfiguration()
             cfg.rect = CGRect(x: 0, y: 0, width: 612, height: 792)
-            do { finish(.success(try await webView.pdf(configuration: cfg))) }
-            catch { finish(.failure(error)) }
+            do { self.finish(.success(try await webView.pdf(configuration: cfg))) }
+            catch { self.finish(.failure(error)) }
         }
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }
