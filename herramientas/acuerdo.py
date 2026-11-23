@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Seraf Clips · acuerdo CLIENTE: crea el acuerdo de servicio en PDF con los datos de 'clientes'."""
-import sys, os, html, shutil, tempfile, subprocess, datetime
+import sys, os, html, shutil, tempfile, subprocess, datetime, time
 
 HOME = os.path.expanduser("~")
 C = os.path.join(HOME, "Desktop", "Clips")
@@ -30,6 +30,25 @@ def corta(d): return f"{d.day} {MC[d.month - 1]}"
 def periodo(d1, d2):
     if d1.month == d2.month: return f"{d1.day} – {d2.day} {MC[d2.month - 1]} {d2.year}"
     return f"{corta(d1)} – {corta(d2)} {d2.year}"
+
+def imprimir_con_navegador(nav, h, out, perfil):
+    """Plan B: Brave/Chrome sin ventana. Si el navegador se queda colgado tras escribir el PDF, lo cerramos."""
+    p = subprocess.Popen([nav, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+                          f"--user-data-dir={perfil}", "--no-pdf-header-footer", "--print-to-pdf-no-header",
+                          f"--print-to-pdf={out}", "file://" + h], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    last, stable = -1, 0
+    for _ in range(120):
+        if p.poll() is not None: break
+        size = os.path.getsize(out) if os.path.exists(out) else -1
+        stable = stable + 1 if size > 1000 and size == last else 0
+        last = size
+        if stable >= 3: break
+        time.sleep(0.5)
+    if p.poll() is None:
+        p.kill()
+        try: p.wait(timeout=5)
+        except subprocess.TimeoutExpired: pass
+    subprocess.run(["pkill", "-f", perfil], capture_output=True)  # cierra procesos auxiliares que queden
 
 def main():
     if len(sys.argv) < 2: die("Uso: acuerdo CLIENTE   (ej: acuerdo joanse)")
@@ -70,20 +89,23 @@ def main():
     }
     s = open(PLANTILLA, encoding="utf-8").read()
     for k, v in datos.items(): s = s.replace("{{" + k + "}}", html.escape(v))
-    nav = os.environ.get("SERAF_CHROME") or next((x for x in NAVEGADORES if os.path.exists(x)), None)
-    if not nav: die("Necesito Brave o Chrome instalado para crear el PDF.")
     dest = os.path.join(C, "acuerdos"); os.makedirs(dest, exist_ok=True)
     out = os.path.join(dest, f"Acuerdo Seraf Clips - {nombre} ({corta(d1)} {d1.year}).pdf")
     tmp = tempfile.mkdtemp(prefix="seraf_acuerdo_")
     try:
         h = os.path.join(tmp, "acuerdo.html"); open(h, "w", encoding="utf-8").write(s)
         if os.path.exists(out): os.remove(out)
-        subprocess.run([nav, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-                        f"--user-data-dir={os.path.join(tmp, 'perfil')}", "--no-pdf-header-footer", "--print-to-pdf-no-header",
-                        f"--print-to-pdf={out}", "file://" + h], capture_output=True, timeout=90)
+        hp = os.environ.get("SERAF_HTMLPDF") or os.path.join(HOME, "clipstools", "htmlpdf")
+        if os.path.exists(hp):
+            try: subprocess.run([hp, h, out], capture_output=True, timeout=60)
+            except subprocess.TimeoutExpired: pass
+        if not os.path.exists(out):
+            nav = os.environ.get("SERAF_CHROME") or next((x for x in NAVEGADORES if os.path.exists(x)), None)
+            if nav: imprimir_con_navegador(nav, h, out, os.path.join(tmp, "perfil"))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    if not os.path.exists(out) or os.path.getsize(out) < 1000: die("No pude crear el PDF. Mándame foto de este mensaje.")
+    if not os.path.exists(out) or os.path.getsize(out) < 1000:
+        die("No pude crear el PDF. Compila el ayudante: swiftc -O ~/clipstools/htmlpdf.swift -o ~/clipstools/htmlpdf  y vuelve a probar.")
     print(f"✅ Acuerdo listo: {os.path.basename(out)}")
     print(f"   {pnom} · US${precio} · {datos['PERIODO']}")
     if sys.platform == "darwin": subprocess.run(["open", "-R", out])
