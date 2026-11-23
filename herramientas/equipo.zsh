@@ -1,5 +1,11 @@
-# ===== Equipo: clips solos a "Para editar" + resumen del día (hoy / mensaje) =====
+# ===== Equipo: clips a "1. crudos", tus amigos los dejan en "2. Editados", entregar al cliente =====
 _scdrive() { local D=(~/Library/CloudStorage/GoogleDrive-*/"Mi unidad"/"Seraf Clips"(N/)); [ -n "$D[1]" ] && echo "$D[1]"; }
+_carpetaseraf() {
+  setopt localoptions extendedglob nullglob
+  local D; D=$(_scdrive) || return 1
+  local -a m; m=("$D"/(#i)*${1}*(/))
+  [ -n "$m[1]" ] && echo "$m[1]"
+}
 vincular() {
   local c=${(U)1} k=${(L)${2#@}} l=$3 F=~/Desktop/Clips/.vinculos
   if [ -z "$c" ] || [ -z "$k" ]; then
@@ -8,7 +14,12 @@ vincular() {
   mkdir -p ~/Desktop/Clips; touch $F
   grep -v "^$c " $F > $F.tmp; mv $F.tmp $F
   echo "$c $k ${l:--}" >> $F
-  echo "✅ $c vinculado: sus clips de '$k' irán solos a '$c - equipo / Para editar'.${l:+ Link guardado para los mensajes.}"
+  echo "✅ $c vinculado con el canal '$k'.${l:+ Link guardado para los mensajes.}"
+}
+_canalesde() {
+  local F=~/Desktop/Clips/.vinculos c k l; local -a o; o=(${(L)1})
+  if [ -f $F ]; then while read c k l; do [ "$c" = "${(U)1}" ] && o+=($k); done < $F; fi
+  echo ${(u)o}
 }
 _clientede() {
   local s=${(L)1} F=~/Desktop/Clips/.vinculos c k l
@@ -23,16 +34,15 @@ _clienteactivo() {
   local -a c; c=("${(@ps:\t:)last}"); local hoy=$(_scdia $EPOCHSECONDS)
   ! [[ $c[3] > $hoy ]] && ! [[ $c[4] < $hoy ]]
 }
+# Cada vertical (editar o editaria) va a "1. crudos/STREAMER"
 _aequipo() {
-  local v=$1 b=${1:t:r}; b=${b%_vertical}; local s=${b%_*} c D
-  c=$(_clientede $s) || return 0
-  _clienteactivo $c || return 0
-  D=$(_scdrive) || return 0
-  local dest="$D/Clientes/$c - equipo (no compartir)/Para editar"
-  [ -d "$dest" ] || return 0
-  cp "$v" "$dest/" || { echo "(No pude copiar ${v:t} a Drive)"; return 1; }
-  local x; for x in ${v%.mp4}*.srt(N); do cp "$x" "$dest/"; done
-  echo "📤 ${v:t} enviado a $c - equipo / Para editar"
+  local v=$1 b=${1:t:r}; b=${b%_vertical}; local s=${(U)${b%_*}} cr ed x
+  cr=$(_carpetaseraf crudos) || { echo "(No encuentro la carpeta crudos en Drive)"; return 1; }
+  ed=$(_carpetaseraf editados)
+  mkdir -p "$cr/$s" && cp "$v" "$cr/$s/" || { echo "(No pude copiar ${v:t} a crudos)"; return 1; }
+  for x in ${v%.mp4}*.srt(N); do cp "$x" "$cr/$s/"; done
+  [ -n "$ed" ] && mkdir -p "$ed/$s"
+  echo "📤 ${v:t} enviado a ${cr:t}/$s"
 }
 [ -z "$functions[_editar_base]" ] && (( $+functions[editar] )) && functions[_editar_base]=$functions[editar]
 editar() {
@@ -48,6 +58,12 @@ _colade() {
   done
   echo $k
 }
+_contar() {  # _contar CARPETA-BASE CLIENTE -> clips en BASE/<canal> de ese cliente
+  local base=$1 s k=0; local -a f
+  [ -n "$base" ] || { echo 0; return; }
+  for s in $(_canalesde $2); do f=("$base/${(U)s}"/*.(mp4|mov|MP4|MOV)(N)); k=$((k + $#f)); done
+  echo $k
+}
 _diacarpeta() {
   local n=$1 hn=$2 D=$3; local -a dd
   dd=("$D/Clientes/$n"/*". $hn"(N/) "$D/Clientes/$n"/Mes\ */*". $hn"(N/))
@@ -56,12 +72,12 @@ _diacarpeta() {
 hoy() {
   zmodload zsh/datetime
   local R=~/Desktop/Clips/clientes.txt D l n
-  [ -s $R ] || { echo "Aún no hay clientes apuntados."; return 0; }
   D=$(_scdrive) || { echo "No encuentro la carpeta Seraf Clips en Google Drive."; return 1; }
+  local cr=$(_carpetaseraf crudos) ed=$(_carpetaseraf editados)
   local hoy=$(_scdia $EPOCHSECONDS); local th=$(_scepoch $hoy) hn=$(_scfecha $EPOCHSECONDS)
-  local -A ult; while IFS= read -r l; do [ -n "$l" ] && ult[${l%%$'\t'*}]=$l; done < $R
   echo "📅 Hoy: $hn"
-  local -a c info vids pe; local q dia dd k est
+  local -A ult; [ -s $R ] && while IFS= read -r l; do [ -n "$l" ] && ult[${l%%$'\t'*}]=$l; done < $R
+  local -a c info vids; local q dia dd k e cc est
   for n in ${(ko)ult}; do
     c=("${(@ps:\t:)ult[$n]}"); info=($(_scplan $c[2]))
     if [[ $c[3] > $hoy ]]; then echo "\n• $n ($info[4]): empieza el $(_scfecha $(_scepoch $c[3]) c)"; continue; fi
@@ -69,18 +85,17 @@ hoy() {
     if (( q < 0 )); then echo "\n• $n ($info[4]): su plan terminó el $(_scfecha $(_scepoch $c[4]) c)"; continue; fi
     dia=$(( (th - $(_scepoch $c[3])) / 86400 + 1 ))
     dd=$(_diacarpeta $n "$hn" "$D"); vids=(); [ -n "$dd" ] && vids=("$dd"/*.(mp4|mov|MP4|MOV)(N))
-    pe=("$D/Clientes/$n - equipo (no compartir)/Para editar"/*.(mp4|mov|MP4|MOV)(N))
     est="✅"; (( $#vids < info[3] )) && est="⏳"
     echo "\n• $n · $info[4] · día $dia de $info[1]"
     echo "  $est Entregados hoy: $#vids de $info[3]"
-    (( $#pe )) && echo "  ✂️  Esperando a tus amigos en 'Para editar': $#pe"
+    e=$(_contar "$ed" $n); (( e )) && echo "  📦 Editados listos para entregar: $e  →  escribe  entregar ${(L)n}"
+    cc=$(_contar "$cr" $n); (( cc )) && echo "  ✂️  En crudos: $cc"
     k=$(_colade $n); (( k )) && echo "  🤖 En la cola de IA: $k"
-    if (( q <= 3 )); then
-      if (( q == 0 )); then echo "  ⚠️  Su plan termina HOY: mándale el recordatorio de renovación"
-      else echo "  ⚠️  Su plan termina en $q días: mándale el recordatorio de renovación"; fi
-    fi
-    (( $#vids )) && echo "  💬 Mensaje de entrega listo: escribe  mensaje ${(L)n}"
+    if (( q == 0 )); then echo "  ⚠️  Su plan termina HOY: mándale el recordatorio de renovación"
+    elif (( q <= 3 )); then echo "  ⚠️  Su plan termina en $q días: mándale el recordatorio de renovación"; fi
   done
+  local -a tc te; tc=("$cr"/*/*.(mp4|mov|MP4|MOV)(N)); te=("$ed"/*/*.(mp4|mov|MP4|MOV)(N))
+  echo "\nEn total: ${#tc} en ${cr:t} · ${#te} en ${ed:t}"
   return 0
 }
 mensaje() {
@@ -107,6 +122,29 @@ mensaje() {
     [ -n "$tit" ] && m+=$'\n'"$tit"
     m+=$'\n'"$link"
   fi
-  if print -rn -- "$m" | pbcopy 2>/dev/null; then echo "📋 Copiado. Pégalo en WhatsApp:"; else echo "Mensaje:"; fi
+  if print -rn -- "$m" | pbcopy 2>/dev/null; then echo "📋 Mensaje copiado. Pégalo en WhatsApp:"; else echo "Mensaje:"; fi
   echo "────────"; print -r -- "$m"; echo "────────"
+}
+# entregar CLIENTE: de "2. Editados/<canal>" a su carpeta de hoy + mensaje copiado
+entregar() {
+  zmodload zsh/datetime
+  local n=${(U)1} D
+  [ -n "$n" ] || { echo "Uso: entregar CLIENTE   (ej: entregar joanse)"; return 1; }
+  grep -q "^$n"$'\t' ~/Desktop/Clips/clientes.txt 2>/dev/null || { echo "No tengo a $n apuntado como cliente."; return 1; }
+  _clienteactivo $n || { echo "$n no tiene un plan activo hoy."; return 1; }
+  D=$(_scdrive) || { echo "No encuentro la carpeta Seraf Clips en Google Drive."; return 1; }
+  local dd=$(_diacarpeta $n "$(_scfecha $EPOCHSECONDS)" "$D")
+  [ -n "$dd" ] || { echo "No encuentro la carpeta de hoy de $n."; return 1; }
+  local ed=$(_carpetaseraf editados) cr=$(_carpetaseraf crudos) s v k=0 old=0
+  for s in $(_canalesde $n); do
+    for v in "$ed/${(U)s}"/*.(mp4|mov|MP4|MOV)(N); do
+      echo "   Entregando ${v:t}..."
+      if [ -e "$dd/${v:t}" ] || cp "$v" "$dd/"; then rm -f "$v"; k=$((k+1)); else echo "   (no pude copiar ${v:t})"; fi
+    done
+    for v in "$cr/${(U)s}"/*(N.m+3); do rm -f "$v" && old=$((old+1)); done
+  done
+  if (( k )); then echo "📦 $k clips entregados en la carpeta de hoy de $n"
+  else echo "No hay clips nuevos de $n en '${ed:t}'."; fi
+  (( old )) && echo "🧹 Borré $old crudos de $n de hace más de 3 días"
+  mensaje $n
 }

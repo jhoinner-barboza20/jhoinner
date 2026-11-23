@@ -106,7 +106,7 @@ _colaia() {
           rm -f "$f"
           [ "$s" = sub ] && subtitular "$out" < /dev/null
           local env=""; (( $+functions[_aequipo] )) && env=$(_aequipo "$out") && [ -n "$env" ] && echo "$env"
-          _aviso "Clip listo con IA ✅" "${out:t}${env:+ · enviado a Para editar}"
+          _aviso "Clip listo con IA ✅" "${out:t}${env:+ · enviado a crudos}"
         else
           _aviso "No pude hacer el vertical" "${f:t}"
         fi

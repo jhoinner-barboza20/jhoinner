@@ -63,7 +63,7 @@ nuevocliente() {
   local T=$'\t'
   if grep -q "^$n${T}[^${T}]*${T}$ini${T}" $R 2>/dev/null; then echo "$n ya tiene creado el periodo que empieza el $ini."; return 1; fi
   local C="$D[1]/Clientes/$n"
-  mkdir -p "$D[1]/Clientes/$n - equipo (no compartir)/Para editar" || return 1
+  mkdir -p "$D[1]/Clientes/$n" || return 1
   if [ $plan = prueba ]; then
     for ((i=0;i<7;i++)); do t=$((t0+i*86400)); mkdir -p "$C/$((i+1)). $(_scfecha $t)"; done
     mkdir -p "$C/8. ⭐ Lo mejor de la semana"
