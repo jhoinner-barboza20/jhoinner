@@ -46,3 +46,18 @@ vertical() {
   fi
   _vertical_base "$@"
 }
+compararia() {
+  local f="$1"
+  [ -f "$f" ] && [[ $f != *_vertical* ]] || { echo "Escribe 'compararia ' (con espacio), arrastra un clip SIN _vertical y pulsa Enter."; return 1; }
+  local t=~/Desktop/Clips/.comparar b=$(basename "$f"); rm -rf $t; mkdir -p $t; cp "$f" $t/$b
+  echo "1/2 Haciendo la versión normal..."
+  touch ~/Desktop/Clips/.sinia; _vertical_base $t/$b >/dev/null 2>&1; rm -f ~/Desktop/Clips/.sinia
+  mv $t/${b%.mp4}_vertical.mp4 $t/normal.mp4 2>/dev/null || { echo "No pude hacer la versión normal."; return 1; }
+  echo "2/2 Haciendo la versión con IA (tarda un poco)..."
+  _vertical_ia $t/$b >/dev/null || { echo "La IA no funcionó con este clip. Mándame foto."; return 1; }
+  mv $t/${b%.mp4}_vertical.mp4 $t/ia.mp4
+  local out=~/Desktop/Clips/comparacion_camara.mp4
+  ffmpeg -nostdin -loglevel error -y -i $t/normal.mp4 -i $t/ia.mp4 -filter_complex "[0:v]crop=1080:768:0:0[a];[1:v]crop=1080:768:0:0[b];[a][b]hstack[v]" \
+    -map "[v]" -map "0:a?" -c:v h264_videotoolbox -b:v 30M -c:a copy "$out" && rm -rf $t \
+    && echo "Listo: comparacion_camara.mp4 · IZQUIERDA normal · DERECHA con IA" && open "$out"
+}
