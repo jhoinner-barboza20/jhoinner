@@ -38,9 +38,10 @@ _vertical_ia() {
   return 0
 }
 [ -z "$functions[_vertical_base]" ] && functions[_vertical_base]=$functions[vertical]
+# vertical normal por defecto; con IA solo cuando lo pide la cola (editaria)
 vertical() {
   local f="${1:-$(_ultimo)}"
-  if [ -f "$f" ] && [ -x ~/clipstools/superres ] && [ ! -f ~/Desktop/Clips/.sinia ]; then
+  if [ -n "$_SERAF_IA" ] && [ -f "$f" ] && [ -x ~/clipstools/superres ] && [ ! -f ~/Desktop/Clips/.sinia ]; then
     _vertical_ia "$f" && return 0
     echo "(La IA no pudo con este clip, uso el método normal)"
   fi
@@ -51,7 +52,7 @@ compararia() {
   [ -f "$f" ] && [[ $f != *_vertical* ]] || { echo "Escribe 'compararia ' (con espacio), arrastra un clip SIN _vertical y pulsa Enter."; return 1; }
   local t=~/Desktop/Clips/.comparar b=$(basename "$f"); rm -rf $t; mkdir -p $t; cp "$f" $t/$b
   echo "1/2 Haciendo la versión normal..."
-  touch ~/Desktop/Clips/.sinia; _vertical_base $t/$b >/dev/null 2>&1; rm -f ~/Desktop/Clips/.sinia
+  _vertical_base $t/$b >/dev/null 2>&1
   mv $t/${b%.mp4}_vertical.mp4 $t/normal.mp4 2>/dev/null || { echo "No pude hacer la versión normal."; return 1; }
   echo "2/2 Haciendo la versión con IA (tarda un poco)..."
   _vertical_ia $t/$b >/dev/null || { echo "La IA no funcionó con este clip. Mándame foto."; return 1; }
@@ -83,6 +84,7 @@ _encolar() {
 }
 _colaia() {
   local Q=~/Desktop/Clips/.cola L=~/Desktop/Clips/.cola/.lock j f s out x p
+  local _SERAF_IA=1
   while true; do
     if ! mkdir $L 2>/dev/null; then
       p=$(cat $L/pid 2>/dev/null)
@@ -122,12 +124,12 @@ cola() {
   for x in $a; do f=$(sed -n 1p $x); echo "▶ Haciendo ahora: ${f:t}"; done
   for x in $b; do f=$(sed -n 1p $x); echo "⏳ Esperando:     ${f:t}"; done
 }
-[ -z "$functions[_editar_base]" ] && (( $+functions[editar] )) && functions[_editar_base]=$functions[editar]
-editar() {
+# editar = como siempre (rápido, sin IA) · editaria = cámara con IA, en la cola
+editaria() {
   local f="$1"
-  if [ ! -x ~/clipstools/superres ] || [ -f ~/Desktop/Clips/.sinia ] || [ ! -f "$f" ] || [[ $f == *_vertical* ]]; then
-    _editar_base "$@"; return
-  fi
+  [ -f "$f" ] || { echo "Escribe 'editaria ' (con espacio), arrastra el clip y pulsa Enter. Agrega 'sub' al final si lo quieres con subtítulos."; return 1; }
+  [[ ${f:t} == *_vertical* ]] && { echo "Este clip ya está en vertical."; return 1; }
+  [ -x ~/clipstools/superres ] || { echo "La IA no está instalada, lo hago normal."; editar "$@"; return; }
   local base=$(basename "$f" .mp4); local n=${base%_*}
   echo "$n" > ~/Desktop/Clips/.nombre
   echo "Streamer: $n"
