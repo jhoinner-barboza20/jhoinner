@@ -1,6 +1,7 @@
 # Seraf Clips · Guía para Claude en el Mac de Jhoiy
 
 Lee esto antes de hacer nada. Resume todo lo que se construyó con Jhoiy hasta el 23 de noviembre de 2026.
+Este archivo es global (`~/.claude/CLAUDE.md`): vale para cualquier tarea en el Mac, no solo para los clips.
 Si algo de aquí choca con lo que ves en el Mac, manda lo que ves en el Mac y actualiza este archivo.
 
 ## Con quién trabajas
@@ -17,17 +18,18 @@ Si algo de aquí choca con lo que ves en el Mac, manda lo que ves en el Mac y ac
 2. **No toques una grabación en curso**: `~/Desktop/Clips/<streamer>_grabacion.*` mientras el proceso de grabación siga vivo.
 3. **Prueba antes de entregar.** Si cambias una herramienta, compílala o ejecútala tú y comprueba el resultado.
 4. **Nada de enviar mensajes ni publicar** a clientes o redes sin que Jhoiy lo pida.
-5. Las funciones de zsh nuevas o cambiadas van en archivos de `~/clipstools/*.zsh`, que se cargan desde `~/.zshrc`.
+5. Puedes trabajar en cualquier carpeta del Mac. Para proyectos nuevos (apps, webs), crea su propia carpeta en `~/Proyectos/`.
+6. Las funciones de zsh nuevas o cambiadas van en archivos de `~/clipstools/*.zsh`, que se cargan desde `~/.zshrc`.
    No pegues bloques sueltos al final de `.zshrc`: ya tiene muchas versiones antiguas, y **la última definición gana**.
-6. Las tareas pesadas (IA, descargas largas) van **en segundo plano**, para que Jhoiy pueda seguir trabajando.
-7. Cuando termines un cambio importante, **añade una línea al Historial** del final de este archivo.
-8. Herramientas interactivas: `editar`, `editaria` y `encuadrar` abren ventanas o piden datos. Ábrelas para que Jhoiy
+7. Las tareas pesadas (IA, descargas largas) van **en segundo plano**, para que Jhoiy pueda seguir trabajando.
+8. Cuando termines un cambio importante, **añade una línea al Historial** del final de este archivo.
+9. Herramientas interactivas: `editar`, `editaria` y `encuadrar` abren ventanas o piden datos. Ábrelas para que Jhoiy
    dibuje o confirme, y espera. Para procesar sin preguntar usa las funciones internas que se explican abajo.
 
 ## Mapa de carpetas
 | Dónde | Qué hay |
 |---|---|
-| `~/Desktop/Clips/` | Carpeta de trabajo (aquí arrancas). |
+| `~/Desktop/Clips/` | Carpeta principal de trabajo de los clips. |
 | `~/Desktop/Clips/listos/<STREAMER>/` | Clips cortados (`<streamer>_HHMMSS.mp4`) y verticales (`..._vertical.mp4`). Carpeta en MAYÚSCULAS. |
 | `~/Desktop/Clips/<streamer>_grabacion.*` | Grabaciones en vivo en curso. |
 | `~/Desktop/Clips/.cam_<streamer>` | Encuadre de la cámara: `manual IZQ ARRIBA ANCHO ALTO` (en %) o `abajo-izq 28`. |
