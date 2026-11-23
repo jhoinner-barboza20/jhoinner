@@ -206,8 +206,8 @@ struct Principal: View {
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 14).fill(morado))
 
-                campo("Nombre del cliente") { TextField("Ej: Joanse", text: $nombre).textFieldStyle(.roundedBorder) }
-                campo("Canal (opcional)") { TextField("Ej: @joanseee o kick.com/joanseee", text: $canal).textFieldStyle(.roundedBorder) }
+                campo("Nombre del cliente") { TextField("", text: $nombre).textFieldStyle(.roundedBorder) }
+                campo("Canal (opcional)") { TextField("", text: $canal).textFieldStyle(.roundedBorder) }
                 campo("Plan que pagó") {
                     Picker("", selection: $plan) { ForEach(Plan.allCases) { p in Text(p.nombre).tag(p) } }
                         .pickerStyle(.segmented).labelsHidden()
