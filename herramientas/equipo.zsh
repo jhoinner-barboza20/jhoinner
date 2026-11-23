@@ -164,3 +164,5 @@ entregar() {
   (( old )) && echo "🧹 Borré $old crudos de $n de hace más de 3 días"
   mensaje $n "$2"
 }
+# acuerdo CLIENTE: crea su acuerdo de servicio en PDF (Escritorio/Clips/acuerdos)
+acuerdo() { python3 ~/clipstools/acuerdo.py "$@"; }
