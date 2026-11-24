@@ -126,8 +126,8 @@ mensaje() {
   (( $#vids )) || { echo "Todavía no hay clips en la carpeta de $n del $(_scfecha $t)."; return 1; }
   local link=$(awk -v c=$n '$1==c{print $3}' ~/Desktop/Clips/.vinculos 2>/dev/null | tail -1)
   [ -z "$link" ] || [ "$link" = "-" ] && link="[link de su carpeta]"
-  local tit="" v t m
-  for v in $vids; do t=${v:t:r}; [[ $t == *' '* ]] && tit+="• $t"$'\n'; done
+  local tit="" v tn m
+  for v in $vids; do tn=${v:t:r}; [[ $tn == *' '* ]] && tit+="• $tn"$'\n'; done
   if [ "$c[2]" = prueba ]; then
     m="${(C)n} ya tienes los clips de hoy en tu carpeta 🔥"$'\n'"$link"$'\n\n'
     [ -n "$tit" ] && m+="Hoy van:"$'\n'"$tit"$'\n'
@@ -140,6 +140,7 @@ mensaje() {
   if print -rn -- "$m" | pbcopy 2>/dev/null; then echo "📋 Mensaje copiado. Pégalo en WhatsApp:"; else echo "Mensaje:"; fi
   echo "────────"; print -r -- "$m"; echo "────────"
 }
+_tam() { if [[ $OSTYPE == darwin* ]]; then stat -f %z "$1" 2>/dev/null; else stat -c %s "$1" 2>/dev/null; fi; }
 # entregar CLIENTE: de "2. Editados/<canal>" a su carpeta de hoy + mensaje copiado
 entregar() {
   zmodload zsh/datetime
@@ -155,7 +156,10 @@ entregar() {
   for s in $(_canalesde $n); do
     for v in "$ed/${(U)s}"/*.(mp4|mov|MP4|MOV)(N); do
       echo "   Entregando ${v:t}..."
-      if [ -e "$dd/${v:t}" ] || cp "$v" "$dd/"; then rm -f "$v"; k=$((k+1)); else echo "   (no pude copiar ${v:t})"; fi
+      local dst="$dd/${v:t}" t1=$(_tam "$v")
+      if [ -e "$dst" ] && [ "$(_tam "$dst")" = "$t1" ]; then rm -f "$v"; k=$((k+1)); continue; fi
+      if cp -f "$v" "$dst" && [ "$(_tam "$dst")" = "$t1" ] && [ "${t1:-0}" -gt 100000 ]; then rm -f "$v"; k=$((k+1))
+      else echo "   ⚠️  ${v:t} no se copió completo: lo dejo en '${ed:t}' para reintentar"; fi
     done
     for v in "$cr/${(U)s}"/*(N.m+3); do rm -f "$v" && old=$((old+1)); done
   done
